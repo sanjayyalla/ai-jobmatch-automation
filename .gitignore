@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Credentials and private keys
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+secrets/
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor settings
+.vscode/
+.idea/
+
+# Temporary files
+tmp/
+temp/
+.cache/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Local databases and backups
+*.db
+*.sqlite
+*.sqlite3
+*.bak
+
+# Personal data
+*.pdf
+*.doc
+*.docx
+personal-resume/
+private-data/

@@ -1,0 +1,738 @@
+{
+  "name": "AI JobMatch – Daily Job Discovery",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "Run actor and get dataset",
+        "actorSource": "store",
+        "actorId": {
+          "__rl": true,
+          "value": "8hG15V7QtjKUpwAt3",
+          "mode": "list",
+          "cachedResultName": "India Jobs Feed: Naukri, Foundit, Internshala, Instahyre, Apna (getascraper/india-job-inventory-feed)",
+          "cachedResultUrl": "https://console.apify.com/actors/8hG15V7QtjKUpwAt3/input"
+        },
+        "customBody": "{\n  \"internshalaMode\": \"jobs\",\n  \"keyword\": \"\",\n  \"maxItemsPerSource\": 10,\n  \"maxPagesPerSource\": 10,\n  \"maxTotalRows\": 50,\n  \"outputMode\": \"all\",\n  \"postedWithinDays\": 10,\n  \"remoteOnly\": false,\n  \"includeDetails\":true,\n  \"sources\": [\n    \"cutshort\",\n    \"internshala\",\n    \"instahyre\",\n    \"wellfound\",\n    \"hirist\",\n    \"linkedin\",\n    \"naukri\",\n    \"foundit\",\n    \"unstop\",\n    \"apna\",\n    \"workindia\"\n  ],\n  \"uniqueOnly\": true,\n  \"locations\": [\"India\"],\n  \"companyNames\": [],\n  \"excludeKeywords\": [],\n  \"monitorScope\": \"\"\n}",
+        "timeout": 100,
+        "maxTotalChargeUsd": {}
+      },
+      "type": "@apify/n8n-nodes-apify.apify",
+      "typeVersion": 2,
+      "position": [
+        -352,
+        272
+      ],
+      "id": "e3ad148f-a4c4-4d5a-bbd5-6a8e633c4154",
+      "name": "Run an Actor and get dataset"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst inputItems = $input.all();\n\n// Support either individual job records or a returned jobs array.\nconst jobs = inputItems.flatMap(item => {\n  const data = item.json;\n\n  if (Array.isArray(data)) return data;\n  if (Array.isArray(data.jobs)) return data.jobs;\n  if (Array.isArray(data.data)) return data.data;\n\n  return [data];\n});\n\nreturn jobs\n  .filter(job => job && job.listingKey)\n  .map(job => ({\n    json: {\n      jobId: job.listingKey,\n      title: job.title || \"\",\n      company: job.employer || job.company || \"\",\n      location: job.location || \"\",\n      remote: job.isRemote ?? false,\n\n      source: job.sourcePlatform || \"\",\n      postedAt: job.postedAt || null,\n\n      skills: Array.isArray(job.skills)\n        ? job.skills.join(\", \")\n        : \"\",\n\n      salaryMin: job.salaryMin ?? null,\n      salaryMax: job.salaryMax ?? null,\n      salaryCurrency: job.salaryCurrency || null,\n      salaryRaw: job.salaryRaw || \"\",\n\n      listingUrl: job.listingUrl || \"\",\n      isActive: job.isActive ?? true,\n      lifecycleStatus: job.lifecycleStatus || \"\",\n\n      contentFingerprint: job.contentFingerprint || \"\",\n      sourceComplete: job.sourceComplete ?? false,\n      sourceCapped: job.sourceCapped ?? false\n    }\n  }));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -128,
+        272
+      ],
+      "id": "86275924-5d1e-4470-8ca0-58d374b6be10",
+      "name": "Normalize & Filter Jobs"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst items = $input.all();\n\nconst excludedTitles =\n  /\\b(senior|sr\\.?|lead|principal|staff engineer|engineering manager|director|architect|head of)\\b/i;\n\n// Target roles\nconst targetRolePattern =\n  /\\b(ai engineer|ai\\/ml engineer|artificial intelligence engineer|generative ai|genai|agentic ai|agentic engineer|llm engineer|llm|machine learning engineer|machine learning|ml engineer|python developer|python engineer|backend developer|backend engineer|software engineer|software developer|associate software engineer|graduate engineer trainee|nlp engineer|deep learning engineer)\\b/i;\n\nconst indianLocations = [\n  \"india\", \"bengaluru\", \"bangalore\", \"hyderabad\",\n  \"chennai\", \"pune\", \"mumbai\", \"delhi\", \"noida\",\n  \"gurugram\", \"gurgaon\", \"ahmedabad\", \"kolkata\",\n  \"jaipur\", \"kochi\", \"coimbatore\", \"indore\",\n  \"thiruvananthapuram\", \"visakhapatnam\", \"mysore\"\n];\n\nconst now = Date.now();\nconst maxAgeMs = 5 * 24 * 60 * 60 * 1000;\n\nreturn items.filter(item => {\n  const job = item.json;\n\n  // 1. Exclude inactive listings\n  if (job.isActive === false) return false;\n\n  const title = job.title || \"\";\n\n  // 2. Exclude senior-level positions\n  if (excludedTitles.test(title)) return false;\n\n  // 3. Include only target job roles\n  if (!targetRolePattern.test(title)) return false;\n\n  // 4. India-only location check\n  const location = (job.location || \"\").toLowerCase();\n\n  const isIndia = indianLocations.some(place =>\n    location.includes(place)\n  );\n\n  if (!isIndia) return false;\n\n  // 5. Exclude jobs older than five days\n  // Keep jobs with missing dates for later review\n  if (job.postedAt) {\n    const postedTime = new Date(job.postedAt).getTime();\n\n    if (\n      !Number.isNaN(postedTime) &&\n      now - postedTime > maxAgeMs\n    ) {\n      return false;\n    }\n  }\n\n  return true;\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        96,
+        272
+      ],
+      "id": "e88c4074-61b7-49a4-95d5-6a5476b28c5b",
+      "name": "Fresher & Location Filter"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "AI JobMatch Database"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "RESELECT_YOUR_SHEET_TAB",
+          "mode": "list",
+          "cachedResultName": "Job_Applications"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        496
+      ],
+      "id": "e61d30f5-c40c-446d-888b-2f8541540dbc",
+      "name": "Get Existing Jobs",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "\n// Get today's filtered jobs\nconst todayJobs = $(\"Fresher & Location Filter\")\n  .all()\n  .map(item => item.json);\n\n// Get previously stored jobs from Google Sheets\nconst existingRows = $(\"Get Existing Jobs\")\n  .all()\n  .map(item => item.json);\n\n// Create a set of existing job IDs\nconst existingJobIds = new Set(\n  existingRows\n    .map(row => String(row.jobId || \"\").trim())\n    .filter(Boolean)\n);\n\n// Keep only genuinely new jobs\nconst newJobs = todayJobs.filter(job => {\n  const id = String(job.jobId || \"\").trim();\n\n  return id && !existingJobIds.has(id);\n});\n\nreturn newJobs.map(job => ({\n  json: job\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        272
+      ],
+      "id": "2cb284d2-70b6-44d1-9313-de790fd51218",
+      "name": "Remove Duplicate Jobs"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{\n  \"Evaluate this job against my resume.\\n\\n\" +\n  \"Job Title: \" + $json.title + \"\\n\" +\n  \"Company: \" + $json.company + \"\\n\" +\n  \"Location: \" + $json.location + \"\\n\" +\n  \"Remote: \" + $json.remote + \"\\n\" +\n  \"Skills: \" + $json.skills + \"\\n\" +\n  \"Salary: \" + $json.salaryRaw + \"\\n\" +\n  \"Job URL: \" + $json.listingUrl\n}}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "\nYou are an intelligent AI Job Matching Assistant.\n\nYour responsibility is to evaluate job opportunities against the candidate's resume and determine whether the candidate should apply.\n\nCANDIDATE PROFILE:\n- Experience level: Fresher / 0–1 years.\n- Target location: India.\n- Target roles:\n  AI Engineer, Generative AI Engineer, Agentic AI Engineer,\n  Machine Learning Engineer, Python Developer,\n  Backend Developer, Associate Software Engineer.\n\nYOUR WORKFLOW:\n\n1. UNDERSTAND THE JOB\nAnalyze the job title, company, location, skills, salary,\nwork arrangement and any available job description.\n\n2. RETRIEVE RESUME INFORMATION\nUse the Qdrant resume search tool to retrieve relevant\ncandidate information.\n\nSearch for:\n- Programming languages\n- Frameworks and libraries\n- Machine learning and deep learning knowledge\n- Generative AI and LLM skills\n- RAG and Agentic AI experience\n- Projects\n- Education and certifications\n- Work experience\n\nUse retrieved resume evidence rather than assuming skills.\n\n3. EVALUATE THE MATCH\n\nEvaluate these dimensions:\n\nA. Technical Skills (35 points)\nCompare required job skills with demonstrated candidate skills.\n\nB. Role Relevance (20 points)\nDetermine whether the job matches the candidate's target roles.\n\nC. Experience Suitability (20 points)\nPrefer fresher, graduate, entry-level and 0–1 year positions.\nPenalize senior and lead-level requirements.\n\nD. Project Relevance (15 points)\nCheck whether the candidate's projects are relevant.\n\nE. Location and Work Arrangement (10 points)\nPrefer jobs in India. Remote Indian jobs are acceptable.\n\n4. SCORING RULES\n\nReturn a score from 0 to 100.\n\n90–100: Excellent match\n75–89: Strong match\n60–74: Moderate match\n40–59: Weak match\n0–39: Poor match\n\nDo not inflate scores.\nA job title alone is not sufficient evidence of suitability.\n\nIf job description or required skills are missing,\nexplicitly mention that the assessment has limited information.\nDo not invent requirements.\n\n5. RECOMMENDATION\n\nApply:\n- Score >= 75\n- No major experience or eligibility mismatch.\n\nMaybe:\n- Score between 60 and 74.\n- Or potentially suitable, but important information is missing.\n\nSkip:\n- Score below 60.\n- Clearly senior or unsuitable positions.\n- Major eligibility mismatch.\n\n6. MISSING SKILLS\n\nIdentify skills mentioned in the available job information\nthat are not supported by the resume.\n\nDo not classify an unmentioned skill as a missing skill\nwhen the job requirements are unavailable.\n\n7. HONESTY RULES\n\n- Never invent candidate experience.\n- Never claim a project exists unless supported by the resume.\n- Distinguish between knowledge and practical experience.\n- Do not assume salary currency is INR.\n- Do not assume missing job information.\n- Use the resume retrieval tool whenever relevant.\n\nOUTPUT REQUIREMENT:\n\nReturn valid JSON only, without Markdown formatting.\n\nUse exactly this structure:\n\n{\n  \"matchScore\": 0,\n  \"recommendation\": \"Apply\",\n  \"roleCategory\": \"Backend Developer\",\n  \"experienceSuitability\": \"Suitable\",\n  \"matchingSkills\": [],\n  \"missingSkills\": [],\n  \"relevantProjects\": [],\n  \"strengths\": [],\n  \"concerns\": [],\n  \"reasoning\": \"\",\n  \"informationCompleteness\": \"Limited\"\n}\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        752,
+        272
+      ],
+      "id": "12194321-969a-4ffd-8df2-ce64ede8dc43",
+      "name": "Gemini JobMatch Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.1-flash-lite",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        624,
+        480
+      ],
+      "id": "dbc4af7b-22b7-4733-a3d8-f934cfc20cb1",
+      "name": "Google Gemini Chat Model"
+    },
+    {
+      "parameters": {
+        "mode": "retrieve-as-tool",
+        "toolDescription": "Search the candidate's resume to retrieve relevant information\nabout technical skills, programming languages, frameworks,\nAI/ML knowledge, projects, education, certifications and work\nexperience.\n\nUse this tool whenever you need evidence to evaluate whether\nthe candidate is suitable for a job.\n\nReturn relevant resume information. Do not assume the candidate\nhas a skill or experience unless it is supported by the retrieved\nresume content.",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "resume_knowledge",
+          "mode": "list",
+          "cachedResultName": "resume_knowledge"
+        },
+        "topK": 5,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.4,
+      "position": [
+        784,
+        496
+      ],
+      "id": "c95314b3-95c9-4286-a92a-392f40d44599",
+      "name": "Qdrant Vector Store"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        784,
+        688
+      ],
+      "id": "c018168d-ba4e-491a-b6cb-80bd692ecfc5",
+      "name": "Embeddings Google Gemini"
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n  \"type\": \"object\",\n  \"properties\": {\n    \"matchScore\": {\n      \"type\": \"number\"\n    },\n    \"recommendation\": {\n      \"type\": \"string\",\n      \"enum\": [\"Apply\", \"Maybe\", \"Skip\"]\n    },\n    \"roleCategory\": {\n      \"type\": \"string\"\n    },\n    \"experienceSuitability\": {\n      \"type\": \"string\"\n    },\n    \"matchingSkills\": {\n      \"type\": \"array\",\n      \"items\": {\"type\": \"string\"}\n    },\n    \"missingSkills\": {\n      \"type\": \"array\",\n      \"items\": {\"type\": \"string\"}\n    },\n    \"relevantProjects\": {\n      \"type\": \"array\",\n      \"items\": {\"type\": \"string\"}\n    },\n    \"strengths\": {\n      \"type\": \"array\",\n      \"items\": {\"type\": \"string\"}\n    },\n    \"concerns\": {\n      \"type\": \"array\",\n      \"items\": {\"type\": \"string\"}\n    },\n    \"reasoning\": {\n      \"type\": \"string\"\n    },\n    \"informationCompleteness\": {\n      \"type\": \"string\",\n      \"enum\": [\"Complete\", \"Partial\", \"Limited\"]\n    }\n  },\n  \"required\": [\n    \"matchScore\",\n    \"recommendation\",\n    \"roleCategory\",\n    \"experienceSuitability\",\n    \"matchingSkills\",\n    \"missingSkills\",\n    \"relevantProjects\",\n    \"strengths\",\n    \"concerns\",\n    \"reasoning\",\n    \"informationCompleteness\"\n  ],\n  \"additionalProperties\": false\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1072,
+        576
+      ],
+      "id": "45e5afc7-6069-48f0-bb0a-d687f41df344",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        320,
+        400
+      ],
+      "id": "d51dd112-0588-49dc-8e78-ff5a57088544",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst agentItems = $input.all();\n\nconst originalJobs = $(\"Remove Duplicate Jobs\")\n  .all()\n  .map(item => item.json);\n\nreturn agentItems.map((item, index) => {\n  const job = originalJobs[index] || {};\n  const data = item.json;\n\n  // Handle structured output or JSON returned as text.\n  let evaluation = data.output ?? data;\n\n  if (typeof evaluation === \"string\") {\n    try {\n      evaluation = JSON.parse(evaluation);\n    } catch {\n      evaluation = {};\n    }\n  }\n\n  // Handle an additional nested output object if present.\n  if (evaluation && typeof evaluation.output === \"object\") {\n    evaluation = evaluation.output;\n  }\n\n  return {\n    json: {\n      ...job,\n      matchScore: evaluation.matchScore ?? 0,\n      recommendation: evaluation.recommendation ?? \"Maybe\",\n      roleCategory: evaluation.roleCategory ?? \"\",\n      experienceSuitability: evaluation.experienceSuitability ?? \"\",\n      matchingSkills: evaluation.matchingSkills ?? [],\n      missingSkills: evaluation.missingSkills ?? [],\n      relevantProjects: evaluation.relevantProjects ?? [],\n      strengths: evaluation.strengths ?? [],\n      concerns: evaluation.concerns ?? [],\n      reasoning: evaluation.reasoning ?? \"\",\n      informationCompleteness:\n        evaluation.informationCompleteness ?? \"Limited\"\n    }\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        272
+      ],
+      "id": "dae53314-e7f9-4e78-99c4-7a184e6905f5",
+      "name": "Prepare JobMatch Results"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "REPLACE_WITH_YOUR_GOOGLE_SHEET_ID",
+          "mode": "list",
+          "cachedResultName": "AI JobMatch Database"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "RESELECT_YOUR_SHEET_TAB",
+          "mode": "list",
+          "cachedResultName": "Job_Applications"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "jobId": "={{ $json.jobId }}",
+            "title": "={{ $json.title }}",
+            "company": "={{ $json.company }}",
+            "remote": "={{ $json.remote }}",
+            "location": "={{ $json.location }}",
+            "source": "={{ $json.source }}",
+            "postedAt": "={{ $json.postedAt }}",
+            "skills": "={{ $json.skills }}",
+            "salaryRaw": "={{ $json.salaryRaw }}",
+            "listingUrl": "={{ $json.listingUrl }}",
+            "salaryCurrency": "={{ $json.salaryCurrency }}",
+            "matchScore": "={{ $json.matchScore }}",
+            "recommendation": "={{ $json.recommendation }}",
+            "roleCategory": "={{ $json.roleCategory }}",
+            "experienceSuitability": "={{ $json.experienceSuitability }}",
+            "matchingSkills": "={{ $json.matchingSkills }}",
+            "missingSkills": "={{ $json.missingSkills }}",
+            "relevantProjects": "={{ $json.relevantProjects }}",
+            "strengths": "={{ $json.strengths }}",
+            "concerns": "={{ $json.concerns }}",
+            "reasoning": "={{ $json.reasoning }}",
+            "informationCompleteness": "={{ $json.informationCompleteness }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "jobId",
+              "displayName": "jobId",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "company",
+              "displayName": "company",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "location",
+              "displayName": "location",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "remote",
+              "displayName": "remote",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "source",
+              "displayName": "source",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "postedAt",
+              "displayName": "postedAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "skills",
+              "displayName": "skills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "salaryRaw",
+              "displayName": "salaryRaw",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "salaryCurrency",
+              "displayName": "salaryCurrency",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "listingUrl",
+              "displayName": "listingUrl",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "matchScore",
+              "displayName": "matchScore",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "recommendation",
+              "displayName": "recommendation",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "roleCategory",
+              "displayName": "roleCategory",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "experienceSuitability",
+              "displayName": "experienceSuitability",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "matchingSkills",
+              "displayName": "matchingSkills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "missingSkills",
+              "displayName": "missingSkills",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "relevantProjects",
+              "displayName": "relevantProjects",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "strengths",
+              "displayName": "strengths",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "concerns",
+              "displayName": "concerns",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "reasoning",
+              "displayName": "reasoning",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "informationCompleteness",
+              "displayName": "informationCompleteness",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1296,
+        288
+      ],
+      "id": "fd0c3a20-2e6a-4f71-ab5a-b2bfc7879ac4",
+      "name": "Append row in sheet"
+    },
+    {
+      "parameters": {
+        "chatId": "REPLACE_WITH_YOUR_TELEGRAM_CHAT_ID",
+        "text": "=\n={{\n(() => {\n  const esc = (value) =>\n    String(value ?? \"Not specified\")\n      .replace(/&/g, \"&amp;\")\n      .replace(/</g, \"&lt;\")\n      .replace(/>/g, \"&gt;\");\n\n  const score = Math.max(\n    0,\n    Math.min(100, Number($json.matchScore) || 0)\n  );\n\n  const recommendation = $json.recommendation || \"Maybe\";\n\n  const status = {\n    Apply: \"🟢 STRONG MATCH\",\n    Maybe: \"🟡 WORTH CONSIDERING\",\n    Skip: \"🔴 NOT RECOMMENDED\"\n  }[recommendation] || \"⚪ REVIEW\";\n\n  const skills = (value) =>\n    Array.isArray(value) && value.length\n      ? value.map(esc).join(\" · \")\n      : \"Not specified\";\n\n  const bar = \"🟩\".repeat(Math.floor(score / 10)) +\n              \"⬜\".repeat(10 - Math.floor(score / 10));\n\n  return (\n    \"🚀 <b>AI JOBMATCH ALERT</b>\\n\" +\n    \"━━━━━━━━━━━━━━━━━━\\n\\n\" +\n\n    \"💼 <b>\" + esc($json.title) + \"</b>\\n\" +\n    \"🏢 \" + esc($json.company) + \"\\n\" +\n    \"📍 \" + esc($json.location) + \"\\n\" +\n    \"🌐 \" + ($json.remote ? \"Remote\" : \"On-site / Hybrid\") + \"\\n\\n\" +\n\n    \"🎯 <b>MATCH SCORE</b>\\n\" +\n    bar + \"\\n\" +\n    \"⭐ <b>\" + score + \"/100</b>\\n\" +\n    \"📌 \" + status + \"\\n\\n\" +\n\n    \"✅ <b>Matching Skills</b>\\n\" +\n    skills($json.matchingSkills) + \"\\n\\n\" +\n\n    \"📚 <b>Skills to Improve</b>\\n\" +\n    skills($json.missingSkills) + \"\\n\\n\" +\n\n    \"🧠 <b>WHY THIS MATCH?</b>\\n\" +\n    esc($json.reasoning) + \"\\n\\n\" +\n\n    \"━━━━━━━━━━━━━━━━━━\\n\" +\n    \"🔗 <a href=\\\"\" + esc($json.listingUrl) +\n    \"\\\">VIEW JOB &amp; APPLY</a>\\n\\n\" +\n\n    \"<i>🤖 An opportunity discovered and evaluated by AI JobMatch</i>\"\n  );\n})()\n}}\n",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1664,
+        304
+      ],
+      "id": "4ea4898b-e5c1-4e2e-afe0-16f288fb1005",
+      "name": "Send a text message",
+      "webhookId": "9e2c97a7-8ba5-462d-bd2a-269b5e07691d"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 4
+          },
+          "conditions": [
+            {
+              "id": "d60e6aa1-74ab-4150-b7ad-87076a779051",
+              "leftValue": "={{ $json.recommendation }}",
+              "rightValue": "Apply",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "a82a1091-8450-4bca-bb7c-bea689fe067d",
+              "leftValue": "={{ $json.recommendation }}",
+              "rightValue": "Maybe",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.4,
+      "position": [
+        1504,
+        496
+      ],
+      "id": "17e20167-b40d-4ec5-ac72-98b9d1693fa5",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -576,
+        272
+      ],
+      "id": "5b491f0b-9cd4-4664-899a-365cd5fdb916",
+      "name": "Schedule Trigger"
+    }
+  ],
+  "connections": {
+    "Run an Actor and get dataset": {
+      "main": [
+        [
+          {
+            "node": "Normalize & Filter Jobs",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Existing Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize & Filter Jobs": {
+      "main": [
+        [
+          {
+            "node": "Fresher & Location Filter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fresher & Location Filter": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Jobs": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Remove Duplicate Jobs": {
+      "main": [
+        [
+          {
+            "node": "Gemini JobMatch Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Gemini JobMatch Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Qdrant Vector Store": {
+      "ai_tool": [
+        [
+          {
+            "node": "Gemini JobMatch Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Gemini JobMatch Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Remove Duplicate Jobs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini JobMatch Agent": {
+      "main": [
+        [
+          {
+            "node": "Prepare JobMatch Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare JobMatch Results": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Run an Actor and get dataset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "nodeGroups": []
+}

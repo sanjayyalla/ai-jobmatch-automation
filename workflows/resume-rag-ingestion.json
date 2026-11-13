@@ -1,0 +1,121 @@
+{
+  "name": "AI JobMatch – Resume RAG Ingestion",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "AI JobMatch Resume Ingestion",
+        "formDescription": "Upload your latest resume for AI job matching",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Resume PDF",
+              "fieldType": "file",
+              "fieldName": "resumePdf",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c1970b60-167c-4234-829d-dd2b4a74cbdf",
+      "name": "Upload Resume PDF",
+      "webhookId": "fbd762a3-baa1-4304-9fd1-f64d4d2a4f11"
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "qdrantCollection": {
+          "__rl": true,
+          "value": "resume_knowledge",
+          "mode": "list",
+          "cachedResultName": "resume_knowledge"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreQdrant",
+      "typeVersion": 1.4,
+      "position": [
+        288,
+        0
+      ],
+      "id": "9a9d66b0-6287-4be3-b7ca-f140d16c1262",
+      "name": "Qdrant Vector Store"
+    },
+    {
+      "parameters": {
+        "dataType": "binary",
+        "options": {
+          "splitPages": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        336,
+        176
+      ],
+      "id": "c8165006-78e1-457a-afc4-a7e3637a51ec",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        144,
+        176
+      ],
+      "id": "4ddb1558-9111-431e-9b69-8afe3218323e",
+      "name": "Embeddings Google Gemini"
+    }
+  ],
+  "connections": {
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Resume PDF": {
+      "main": [
+        [
+          {
+            "node": "Qdrant Vector Store",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "nodeGroups": []
+}

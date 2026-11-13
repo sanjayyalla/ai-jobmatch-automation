@@ -1,0 +1,46 @@
+{
+  "jobId": "sample-job-001",
+  "title": "Associate AI Engineer",
+  "company": "Example Technologies",
+  "location": "Bengaluru, India",
+  "remote": true,
+  "source": "sample-source",
+  "postedAt": "2026-11-10T09:00:00Z",
+  "skills": "Python, Machine Learning, LLMs, REST APIs",
+  "salaryMin": 600000,
+  "salaryMax": 900000,
+  "salaryCurrency": "INR",
+  "salaryRaw": "₹6 LPA - ₹9 LPA",
+  "listingUrl": "https://example.com/jobs/sample-job-001",
+  "isActive": true,
+  "lifecycleStatus": "active",
+  "contentFingerprint": "sample-fingerprint-001",
+  "sourceComplete": true,
+  "sourceCapped": false,
+  "matchScore": 86,
+  "recommendation": "Apply",
+  "roleCategory": "AI Engineering",
+  "experienceSuitability": "Suitable for fresher / entry-level candidate",
+  "matchingSkills": [
+    "Python",
+    "Machine Learning",
+    "LLMs"
+  ],
+  "missingSkills": [
+    "Production RAG implementation",
+    "Advanced model evaluation"
+  ],
+  "relevantProjects": [
+    "AI JobMatch",
+    "Machine Learning classification project"
+  ],
+  "strengths": [
+    "Relevant Python and machine learning experience",
+    "Hands-on experience with LLM-based applications"
+  ],
+  "concerns": [
+    "Limited production-level AI engineering experience"
+  ],
+  "reasoning": "The candidate demonstrates relevant Python, machine learning and LLM knowledge. The role appears suitable for an entry-level candidate, although production-level experience could be a gap.",
+  "informationCompleteness": "Good"
+}
